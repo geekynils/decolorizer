@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no"/>
+    <title>Decolorizer</title>
+    <style>
+        body { margin: 0; background-color: black }
+        .game {
+            position: absolute;
+            top: 0px;
+            left: 0px;
+            margin: 0px;
+            border: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            display: block;
+            image-rendering: optimizeSpeed;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: -o-crisp-edges;
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: optimize-contrast;
+            image-rendering: crisp-edges;
+            image-rendering: pixelated;
+            -ms-interpolation-mode: nearest-neighbor;
+        }
+    </style>
+  </head>
+  <body>
+    <a id="emailLink" href = "mailto:decolorizer-art@gmail.com?subject=Feedback" style="display:none"></a>
+    <canvas class="game" id="canvas" oncontextmenu="event.preventDefault()"></canvas>
+    <script type='text/javascript'>
+      var Module = {
+        preRun: [],
+        postRun: [],
+        print: (function() {
+            return function(text) {
+                text = Array.prototype.slice.call(arguments).join(' ');
+                console.log(text);
+            };
+        })(),
+        printErr: function(text) {
+            text = Array.prototype.slice.call(arguments).join(' ');
+            console.error(text);
+        },
+        canvas: (function() {
+            var canvas = document.getElementById('canvas');
+            //canvas.addEventListener("webglcontextlost", function(e) { alert('FIXME: WebGL context lost, please reload the page'); e.preventDefault(); }, false);
+            return canvas;
+        })(),
+        setStatus: function(text) {
+            console.log("status: " + text);
+        },
+        monitorRunDependencies: function(left) {
+            console.log("monitor run deps: " + left);
+        }
+      };
+      window.onerror = function() {
+        console.log("onerror: " + event.message);
+      };
+      // taken from: https://stackoverflow.com/questions/54466870/emscripten-offer-to-download-save-a-generated-memfs-file
+      function offerFileAsDownload(filename, mime) {
+          mime = mime || "application/octet-stream";
+
+          let content = Module.FS.readFile(filename);
+          console.log(`Offering download of "${filename}", with ${content.length} bytes...`);
+
+          var a = document.createElement('a');
+          a.download = filename;
+          a.href = URL.createObjectURL(new Blob([content], {type: mime}));
+          a.style.display = 'none';
+
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(a.href);
+          }, 2000);
+        }
+        
+        function sendEmail() {
+            document.getElementById("emailLink").click();
+        }
+
+        function showFileChooser() {
+            var input = document.getElementById("fileInput");
+            if (!input) {
+                input = document.createElement("input");
+                input.type = "file";
+                input.id = "fileInput";
+                input.accept = "image/png, image/jpeg, image/jpg";
+                input.addEventListener("change", writeFile, false);
+            }
+            input.click();
+            // click() does not work on the iPhone
+            /*
+            var ev = document.createEvent("HTMLEvents");
+            ev.initEvent("click", true, true );
+            input.dispatchEvent(ev); */
+        }
+
+        function writeFile() {
+            // name is accessible through this.files[index].name
+            FS.writeFile("uploaded", this.files[0], { encoding: "binary" });
+            notifyFileAvailable();
+        }
+
+        function openLink(url) {
+            var a = document.createElement('a');
+            a.href = url;
+            a.target = "_blank";
+            a.stype = "display: none; cursor: pointer;"
+            a.click();
+            /*
+            var ev = document.createEvent("HTMLEvents");
+            ev.initEvent("click", true, true );
+            a.dispatchEvent(ev);*/
+            a.remove();
+        }
+
+    </script>
+    {{{ SCRIPT }}}
+  </body>
+</html>
