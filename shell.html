@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no"/>
-    <title>Decolorizer</title>
+    <title>Decolorizer - Create coloring pictures from any image!</title>
     <style>
         body { margin: 0; background-color: black }
         .game {
@@ -86,46 +86,6 @@
             document.body.removeChild(a);
             URL.revokeObjectURL(a.href);
           }, 2000);
-        }
-        
-        function sendEmail() {
-            document.getElementById("emailLink").click();
-        }
-
-        function showFileChooser() {
-            var input = document.getElementById("fileInput");
-            if (!input) {
-                input = document.createElement("input");
-                input.type = "file";
-                input.id = "fileInput";
-                input.accept = "image/png, image/jpeg, image/jpg";
-                input.addEventListener("change", writeFile, false);
-            }
-            input.click();
-            // click() does not work on the iPhone
-            /*
-            var ev = document.createEvent("HTMLEvents");
-            ev.initEvent("click", true, true );
-            input.dispatchEvent(ev); */
-        }
-
-        function writeFile() {
-            // name is accessible through this.files[index].name
-            FS.writeFile("uploaded", this.files[0], { encoding: "binary" });
-            notifyFileAvailable();
-        }
-
-        function openLink(url) {
-            var a = document.createElement('a');
-            a.href = url;
-            a.target = "_blank";
-            a.stype = "display: none; cursor: pointer;"
-            a.click();
-            /*
-            var ev = document.createEvent("HTMLEvents");
-            ev.initEvent("click", true, true );
-            a.dispatchEvent(ev);*/
-            a.remove();
         }
 
     </script>

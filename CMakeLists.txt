@@ -98,6 +98,6 @@ endif()
 # Emscripten-specific linker options
 if (CMAKE_SYSTEM_NAME STREQUAL Emscripten)
     # shell provided by the sokol samples
-    target_link_options(decolorizer PRIVATE --bind -sEXTRA_EXPORTED_RUNTIME_METHODS=FS -sFETCH=1 -sASSERTIONS=1 
+    target_link_options(decolorizer PRIVATE --bind -EXPORTED_RUNTIME_METHODS=FS -sFETCH=1 -sASSERTIONS=1 
         -sTOTAL_MEMORY=1GB -sMALLOC=emmalloc --closure=1 --shell-file ../shell.html)
 endif()

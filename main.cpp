@@ -19,6 +19,7 @@
 #if defined(__EMSCRIPTEN__)
 #include <emscripten/bind.h>
 #include <emscripten/fetch.h>
+#include <emscripten/html5.h>
 #endif
 
 #include "shader.glsl.h" // generated from shader.glsl using shdc
@@ -110,6 +111,15 @@ static struct {
     uint8_t buffer[MAX_FILE_SIZE];
 } web_load_ctx;
 
+// Track hover status for element where we need to catch click directly from
+// the HTML5 API;
+static struct {
+    bool loadImage = false;
+    bool link = false;
+    bool sendEmail = false;
+    string linkUrl;
+} emHoverStatus;
+
 void startDownload() {
     Image edgeImage = invert(edgeFinder.getLines().toUint8());
     string fn = "decolorized-" + getDateTimeString() + ".png";
@@ -124,12 +134,8 @@ void startDownload() {
     );
 }
 
-void openLink(const string& url) {
-    emscripten::val::global("window").call<void>("openLink", url);
-}
-
 extern "C" {
-void notifyFileAvailable() {
+EMSCRIPTEN_KEEPALIVE void notifyFileAvailable() {
     cout << "file available" << endl;
     FILE* fp = fopen("uploaded", "rb");
     if (!fp) {
@@ -151,9 +157,10 @@ void notifyFileAvailable() {
 void imguiLink(const char* linkText, const char* linkUrl) {
     const ImVec4 linkBlue = ImVec4(0.66f, 0.76f, 1.0f, 1.0f);
     ImGui::TextColored(linkBlue, linkText);
-    if (ImGui::IsItemClicked()) { openLink(linkUrl); }
-    if (ImGui::IsItemHovered()) {
+    emHoverStatus.link = ImGui::IsItemHovered();
+    if (emHoverStatus.link) {
         ImGui::SetTooltip((string("open ") + linkUrl).c_str());
+        emHoverStatus.linkUrl = linkUrl;
     }
 }
 
@@ -212,6 +219,60 @@ void dropWeb() {
     };
     sapp_html5_fetch_dropped_file(&request);
 }
+
+EM_JS(void, writeFile, (), {
+    // name is accessible through this.files[index].name
+    // NOTE That you have to wrap the file into an Uint8Array and then it works,
+    //      the emscripten docs say nothing about this.
+    FS.writeFile("uploaded", new Uint8Array(this.files[0]), { encoding: "binary" });
+    _notifyFileAvailable();
+});
+
+EM_JS(void, jsShowFileChooser, (), {
+    var input = document.getElementById("fileInput");
+    if (!input) {
+        input = document.createElement("input");
+        input.type = "file";
+        input.id = "fileInput";
+        input.accept = "image/png, image/jpeg, image/jpg";
+        input.addEventListener("change", writeFile, false);
+    }
+    input.click();
+});
+
+EM_JS(void, jsOpenLink, (const char* urlStr), {
+    var url = UTF8ToString(urlStr);
+    var a = document.createElement("a");
+    a.href = url;
+    a.target = "_blank";
+    a.stype = "display: none; cursor: pointer;";
+    a.click();
+    a.remove();
+});
+
+EM_JS(void, jsSendEmail, (), {
+    document.getElementById("emailLink").click();
+});
+
+// Catch mouse clicks directly from the HTML5 API. This is required to call
+// click() on HTML elements later. Otherwise click() does not work in Safari.
+EM_BOOL emMouseClickCallback(
+    int eventType,
+    const EmscriptenMouseEvent *event,
+    void *userData
+) {
+    if (emHoverStatus.loadImage) {
+        jsShowFileChooser();
+    }
+    else if (emHoverStatus.link) {
+        jsOpenLink(emHoverStatus.linkUrl.c_str());
+    }
+    else if (emHoverStatus.sendEmail) {
+        jsSendEmail();
+    }
+    return 0;
+}
+
 #else
 
 // MARK: native specific functionality
@@ -349,7 +410,16 @@ void init() {
 
     #ifdef MAC
     initialize_mac_menu("Decolorizer");
+    #elif defined(__EMSCRIPTEN__)
+    emscripten_set_click_callback(
+        EMSCRIPTEN_EVENT_TARGET_WINDOW,
+        NULL,
+        1,
+        emMouseClickCallback
+    );
     #endif
+    
+    
 }
 
 sg_image makeTexture(const Image& image) {
@@ -445,7 +515,7 @@ void frame() {
     
     if (state.firstDraw) {
         state.firstDraw = false;
-        int winw = 360, winh = 360;
+        int winw = 360, winh = 400;
         int margin = 60;
         ImGui::SetNextWindowSize(ImVec2(winw, winh));
         ImGui::SetNextWindowPos(ImVec2(width/sapp_dpi_scale() - winw - margin, margin));
@@ -463,16 +533,15 @@ void frame() {
     ImGui::SameLine();
     ImGui::Text("from Wikipedia");
     ImGui::SameLine();
-    ImGui::TextColored(linkBlue, "decolorize");
-    if (ImGui::IsItemClicked()) {
+    
+    if (ImGui::SmallButton("decolorize##1")) {
         loadImage("lizzardWiki.jpg");
     }
     
     ImGui::Bullet();
     imguiLink("Lego biker", "legoBiker.png");
     ImGui::SameLine();
-    ImGui::TextColored(linkBlue, "decolorize");
-    if (ImGui::IsItemClicked()) {
+    if (ImGui::SmallButton("decolorize##2")) {
         loadImage("legoBiker.png");
     }
     
@@ -481,15 +550,12 @@ void frame() {
     ImGui::SameLine();
     ImGui::Text("from open game art");
     ImGui::SameLine();
-    ImGui::TextColored(linkBlue, "decolorize");
-    if (ImGui::IsItemClicked()) {
+    if (ImGui::SmallButton("decolorize##3")) {
         loadImage("cuteDragon.png");
     }
     
-    /* If I only could figure out how to open the file chooser in Safari.
-    if (ImGui::Button("load image")) {
-        emscripten::val::global("window").call<void>("showFileChooser");
-    }*/
+    ImGui::Button("load image");
+    emHoverStatus.loadImage = ImGui::IsItemHovered();
     
 #endif
     ImGui::Separator();
@@ -538,11 +604,12 @@ void frame() {
     ImGui::EndDisabled();
 #if defined(__EMSCRIPTEN__)
     ImGui::Separator();
-    if (ImGui::Button("feedback / ideas")) {
-        emscripten::val::global("window").call<void>("sendEmail");
-    }
+    ImGui::Button("feedback / ideas");
+    emHoverStatus.sendEmail = ImGui::IsItemHovered();
+    ImGui::SameLine();
 #endif
     
+    ImGui::Text("Copyright 2022 Nils Bruenggel");
     ImGui::End();
     
     sg_begin_default_pass(&pass_action, width, height);
