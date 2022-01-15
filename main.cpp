@@ -62,7 +62,7 @@ BlurSetting blur_radioButtons = blur;
 // th values set by the sliders.
 float th_slider = th, tl_slider = tl;
 
-string statusMessage = "Drop an image (PNG or JPEG) to decolorize it!";
+string statusMessage = "Click on the load button above to load an image (PNG or JPEG) and decolorize it! You can also simply drag and drop an image into this window. It works best with cartoon drawings and toy images but sometimes photos also work quite well.";
 
 EdgeFinder edgeFinder;
 
@@ -112,11 +112,9 @@ static struct {
 } web_load_ctx;
 
 // Track hover status for element where we need to catch click directly from
-// the HTML5 API;
+// the HTML5 API.
 static struct {
-    bool loadImage = false;
     bool link = false;
-    bool sendEmail = false;
     string linkUrl;
 } emHoverStatus;
 
@@ -134,21 +132,21 @@ void startDownload() {
     );
 }
 
+
+// Functions that are called from JS:
 extern "C" {
-EMSCRIPTEN_KEEPALIVE void notifyFileAvailable() {
-    cout << "file available" << endl;
-    FILE* fp = fopen("uploaded", "rb");
-    if (!fp) {
-        cerr << "Failed to read uploaded file!" << endl;
-        return;
-    }
-    fseek(fp, 0, SEEK_END);
-    size_t size = ftell(fp);
-    rewind(fp);
-    uint8_t *buf = static_cast<uint8_t*>(malloc(size));
-    fread(buf, size, 1, fp);
-    edgeFinder.readImage(buf, size);
-    free(buf);
+
+// Without EMSCRIPTEN_KEEPALIVE this will be dead-code eliminated in release builds!
+
+EMSCRIPTEN_KEEPALIVE
+uint8_t* createBuffer(int sz) { return static_cast<uint8_t *>(malloc(sz * sizeof(uint8_t))); }
+
+EMSCRIPTEN_KEEPALIVE
+void deleteBuffer(uint8_t* p) { free(p); }
+
+EMSCRIPTEN_KEEPALIVE
+void notifyImageAvailable(uint8_t* ptr, int size) {
+    edgeFinder.readImage(ptr, size);
     findEdgesAndMakeTexture();
 }
 
@@ -157,8 +155,8 @@ EMSCRIPTEN_KEEPALIVE void notifyFileAvailable() {
 void imguiLink(const char* linkText, const char* linkUrl) {
     const ImVec4 linkBlue = ImVec4(0.66f, 0.76f, 1.0f, 1.0f);
     ImGui::TextColored(linkBlue, linkText);
-    emHoverStatus.link = ImGui::IsItemHovered();
-    if (emHoverStatus.link) {
+    if (ImGui::IsItemHovered()) {
+        emHoverStatus.link = true;
         ImGui::SetTooltip((string("open ") + linkUrl).c_str());
         emHoverStatus.linkUrl = linkUrl;
     }
@@ -220,38 +218,40 @@ void dropWeb() {
     sapp_html5_fetch_dropped_file(&request);
 }
 
-EM_JS(void, writeFile, (), {
-    // name is accessible through this.files[index].name
-    // NOTE That you have to wrap the file into an Uint8Array and then it works,
-    //      the emscripten docs say nothing about this.
-    FS.writeFile("uploaded", new Uint8Array(this.files[0]), { encoding: "binary" });
-    _notifyFileAvailable();
+EM_JS(void, readFile, (), {
+    var f = this.files[0];
+    var reader = new FileReader();
+    reader.onload = function(evt) {
+        console.log(`got name: ${f.name}, type: ${f.type}, size: ${f.size}`);
+        
+        if (f.size > 2000000) {
+            alert("File is too big (bigger then 2MB), please try a smaller one!");
+            return;
+        }
+        
+        const ptr = _createBuffer(f.size);
+        HEAPU8.set(new Uint8Array(reader.result), ptr);
+        _notifyImageAvailable(ptr, f.size);
+        _deleteBuffer(ptr);
+        
+    };
+    reader.readAsArrayBuffer(f);
 });
 
-EM_JS(void, jsShowFileChooser, (), {
+EM_JS(void, addEventListeners, (), {
     var input = document.getElementById("fileInput");
-    if (!input) {
-        input = document.createElement("input");
-        input.type = "file";
-        input.id = "fileInput";
-        input.accept = "image/png, image/jpeg, image/jpg";
-        input.addEventListener("change", writeFile, false);
-    }
-    input.click();
+    input.addEventListener("change", readFile, false);
 });
 
 EM_JS(void, jsOpenLink, (const char* urlStr), {
     var url = UTF8ToString(urlStr);
+    console.log(url);
     var a = document.createElement("a");
     a.href = url;
     a.target = "_blank";
     a.stype = "display: none; cursor: pointer;";
     a.click();
     a.remove();
-});
-
-EM_JS(void, jsSendEmail, (), {
-    document.getElementById("emailLink").click();
 });
 
 // Catch mouse clicks directly from the HTML5 API. This is required to call
@@ -261,14 +261,8 @@ EM_BOOL emMouseClickCallback(
     const EmscriptenMouseEvent *event,
     void *userData
 ) {
-    if (emHoverStatus.loadImage) {
-        jsShowFileChooser();
-    }
-    else if (emHoverStatus.link) {
+    if (emHoverStatus.link) {
         jsOpenLink(emHoverStatus.linkUrl.c_str());
-    }
-    else if (emHoverStatus.sendEmail) {
-        jsSendEmail();
     }
     return 0;
 }
@@ -417,6 +411,7 @@ void init() {
         1,
         emMouseClickCallback
     );
+    addEventListeners();
     #endif
     
     
@@ -523,9 +518,13 @@ void frame() {
     
     ImGui::Begin("Decolorizer");
     ImGui::TextWrapped("%s", statusMessage.c_str());
-#if defined(__EMSCRIPTEN__)
-    ImGui::Text("Example images:");
     
+#if defined(__EMSCRIPTEN__)
+    // This will be set to true if the mouse is over any of the links created
+    // with imguiLink(...).
+    emHoverStatus.link = false;
+    
+    ImGui::Text("Example images:");
     ImVec4 linkBlue = ImVec4(0.66f, 0.76f, 1.0f, 1.0f);
     
     ImGui::Bullet();
@@ -533,7 +532,6 @@ void frame() {
     ImGui::SameLine();
     ImGui::Text("from Wikipedia");
     ImGui::SameLine();
-    
     if (ImGui::SmallButton("decolorize##1")) {
         loadImage("lizzardWiki.jpg");
     }
@@ -553,9 +551,6 @@ void frame() {
     if (ImGui::SmallButton("decolorize##3")) {
         loadImage("cuteDragon.png");
     }
-    
-    ImGui::Button("load image");
-    emHoverStatus.loadImage = ImGui::IsItemHovered();
     
 #endif
     ImGui::Separator();
@@ -602,14 +597,10 @@ void frame() {
     }
 #endif
     ImGui::EndDisabled();
-#if defined(__EMSCRIPTEN__)
-    ImGui::Separator();
-    ImGui::Button("feedback / ideas");
-    emHoverStatus.sendEmail = ImGui::IsItemHovered();
-    ImGui::SameLine();
-#endif
     
+    ImGui::Separator();
     ImGui::Text("Copyright 2022 Nils Bruenggel");
+    
     ImGui::End();
     
     sg_begin_default_pass(&pass_action, width, height);
@@ -657,12 +648,12 @@ void cleanup() {
 
 void setScale(float mouseYscroll) {
     state.scale += mouseYscroll * 0.1f;
-    state.scale = clamp(state.scale, 0.25f, 4.0f);
+    state.scale = clamp(state.scale, 0.1f, 4.0f);
 }
 
 void setScaleFromTouch(float fingerDist) {
     state.scale += fingerDist * 0.0002f;
-    state.scale = clamp(state.scale, 0.25f, 4.0f);
+    state.scale = clamp(state.scale, 0.1f, 4.0f);
 }
 
 void input(const sapp_event* ev) {

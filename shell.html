@@ -5,10 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no"/>
     <title>Decolorizer - Create coloring pictures from any image!</title>
     <style>
-        body { margin: 0; background-color: black }
+        body { 
+            margin: 0; 
+            background-color: #f4f0ec; 
+            font-family: Helvetica, sans-serif;
+            font-size: 11pt;
+        }
+        a {
+            text-decoration: none;
+        }
         .game {
             position: absolute;
-            top: 0px;
+            top: 60px;
             left: 0px;
             margin: 0px;
             border: 0;
@@ -32,12 +40,14 @@
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-
       gtag('config', 'G-FP5MEKPTWN');
     </script>
   </head>
-  <body>
-    <a id="emailLink" href = "mailto:decolorizer-art@gmail.com?subject=Feedback" style="display:none"></a>
+  <body>    
+    <label for="fileInput">Load image: </label>
+    <input type="file" id="fileInput" accept="image/png, image/jpeg, image/jpg"/>
+    <br/>
+    <a id="emailLink" href="mailto:decolorizer-art@gmail.com?subject=Feedback">feedback / ideas</a> 
     <canvas class="game" id="canvas" oncontextmenu="event.preventDefault()"></canvas>
     <script type='text/javascript'>
       var Module = {
