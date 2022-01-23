@@ -116,6 +116,7 @@ static struct {
 static struct {
     bool link = false;
     string linkUrl;
+    bool showFileChooser = false;
 } emHoverStatus;
 
 void startDownload() {
@@ -238,7 +239,7 @@ EM_JS(void, readFile, (), {
     reader.readAsArrayBuffer(f);
 });
 
-EM_JS(void, addEventListeners, (), {
+EM_JS(void, jsAddFileInputEventListener, (), {
     var input = document.getElementById("fileInput");
     input.addEventListener("change", readFile, false);
 });
@@ -254,16 +255,35 @@ EM_JS(void, jsOpenLink, (const char* urlStr), {
     a.remove();
 });
 
-// Catch mouse clicks directly from the HTML5 API. This is required to call
-// click() on HTML elements later. Otherwise click() does not work in Safari.
-EM_BOOL emMouseClickCallback(
-    int eventType,
-    const EmscriptenMouseEvent *event,
-    void *userData
-) {
+EM_JS(void, jsLog, (const char* msg), {
+    console.log(UTF8ToString(msg));
+});
+
+EM_JS(void, jsShowFileChooser, (), {
+    document.getElementById("fileInput").click();
+});
+
+void execActionOfHoveredThings() {
     if (emHoverStatus.link) {
         jsOpenLink(emHoverStatus.linkUrl.c_str());
     }
+    if (emHoverStatus.showFileChooser) {
+        jsShowFileChooser();
+    }
+}
+
+// Catch mouse clicks directly from the HTML5 API. This is required to call
+// click() on HTML elements later. Otherwise click() does not work in Safari Mac.
+EM_BOOL emMouseClickCallback( int eventType, const EmscriptenMouseEvent *event, void *userData) {
+    execActionOfHoveredThings();
+    jsLog("click");
+    return 0;
+}
+
+// There is no click on iOS.
+EM_BOOL emTouchEndedCallback(int eventType, const EmscriptenTouchEvent *touchEvent, void *userData) {
+    execActionOfHoveredThings();
+    jsLog("touch end");
     return 0;
 }
 
@@ -411,10 +431,14 @@ void init() {
         1,
         emMouseClickCallback
     );
-    addEventListeners();
+    emscripten_set_touchend_callback(
+         EMSCRIPTEN_EVENT_TARGET_WINDOW,
+         NULL,
+         1,
+         emTouchEndedCallback
+    );
+    jsAddFileInputEventListener();
     #endif
-    
-    
 }
 
 sg_image makeTexture(const Image& image) {
@@ -510,7 +534,7 @@ void frame() {
     
     if (state.firstDraw) {
         state.firstDraw = false;
-        int winw = 360, winh = 400;
+        int winw = 360, winh = 420;
         int margin = 60;
         ImGui::SetNextWindowSize(ImVec2(winw, winh));
         ImGui::SetNextWindowPos(ImVec2(width/sapp_dpi_scale() - winw - margin, margin));
@@ -551,8 +575,10 @@ void frame() {
     if (ImGui::SmallButton("decolorize##3")) {
         loadImage("cuteDragon.png");
     }
-    
+    ImGui::Button("load image");
+    emHoverStatus.showFileChooser = ImGui::IsItemHovered();
 #endif
+
     ImGui::Separator();
     ImGui::BeginDisabled(!state.loaded);
     
@@ -600,6 +626,9 @@ void frame() {
     
     ImGui::Separator();
     ImGui::Text("Copyright 2022 Nils Bruenggel");
+#if defined(__EMSCRIPTEN__)
+    imguiLink("feedback / ideas", "mailto:decolorizer-art@gmail.com?subject=Feedback");
+#endif
     
     ImGui::End();
     
