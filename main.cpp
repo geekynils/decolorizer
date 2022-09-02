@@ -627,7 +627,7 @@ void frame() {
     ImGui::Separator();
     ImGui::Text("Copyright 2022 Nils Bruenggel");
 #if defined(__EMSCRIPTEN__)
-    imguiLink("feedback / ideas", "mailto:n.bruenggel@gmail.com?subject=Feedback");
+    imguiLink("feedback / ideas", "mailto:n.bruenggel@gmail.com?subject=Feedback Decolorizer");
 #endif
     
     ImGui::End();
