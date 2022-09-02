@@ -383,7 +383,6 @@ void init() {
 
     simgui_desc_t simgui_desc = { };
     simgui_desc.no_default_font = true;
-    simgui_desc.dpi_scale = sapp_dpi_scale();
     simgui_setup(&simgui_desc);
     
     // Taken from https://github.com/floooh/sokol-samples/blob/master/sapp/imgui-highdpi-sapp.cc:
@@ -529,8 +528,9 @@ void frame() {
     const int width = sapp_width();
     const int height = sapp_height();
     
-    const double delta_time = stm_sec(stm_laptime(&last_time));
-    simgui_new_frame(width, height, delta_time);
+    //const double delta_time = stm_sec(stm_laptime(&last_time));
+    simgui_new_frame({ width, height, sapp_frame_duration(), sapp_dpi_scale() });
+    // simgui_new_frame(width, height, delta_time);
     
     if (state.firstDraw) {
         state.firstDraw = false;
@@ -627,7 +627,7 @@ void frame() {
     ImGui::Separator();
     ImGui::Text("Copyright 2022 Nils Bruenggel");
 #if defined(__EMSCRIPTEN__)
-    imguiLink("feedback / ideas", "mailto:decolorizer-art@gmail.com?subject=Feedback");
+    imguiLink("feedback / ideas", "mailto:n.bruenggel@gmail.com?subject=Feedback");
 #endif
     
     ImGui::End();
