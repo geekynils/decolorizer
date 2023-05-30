@@ -13,20 +13,24 @@
 #include "imgui.h"
 #include "imgui_font.h"
 
-#define SOKOL_IMGUI_IMPL
-#include "sokol_imgui.h"
+
 
 #if defined(__EMSCRIPTEN__)
+#define SOKOL_GLES3
 #include <emscripten/bind.h>
 #include <emscripten/fetch.h>
 #include <emscripten/html5.h>
 #endif
 
-#include "shader.glsl.h" // generated from shader.glsl using shdc
-
 #ifdef MAC
+#define SOKOL_METAL
 #include "mac_utils.h"
 #endif
+
+#define SOKOL_IMGUI_IMPL
+#include "sokol_imgui.h"
+
+#include "shader.glsl.h" // generated from shader.glsl using shdc
 
 #include "image.h"
 #include "canny.h"
@@ -196,8 +200,8 @@ void loadImage(const string& url) {
 void emsc_load_callback(const sapp_html5_fetch_response* response) {
     if (response->succeeded) {
         web_load_ctx.state = LOADSTATE_SUCCESS;
-        web_load_ctx.size = (int) response->fetched_size;
-        loadImageFromBuffer(reinterpret_cast<const uint8_t *>(response->buffer_ptr),  web_load_ctx.size);
+        web_load_ctx.size = static_cast<int>(response->data.size);
+        loadImageFromBuffer(reinterpret_cast<const uint8_t *>(response->data.ptr), web_load_ctx.size);
         findEdgesAndMakeTexture();
         resetPos();
     } else if (SAPP_HTML5_FETCH_ERROR_BUFFER_TOO_SMALL == response->error_code) {
@@ -213,8 +217,8 @@ void dropWeb() {
     sapp_html5_fetch_request request = {
         .dropped_file_index = 0,
         .callback = emsc_load_callback,
-        .buffer_ptr = web_load_ctx.buffer,
-        .buffer_size = sizeof(web_load_ctx.buffer),
+        .buffer.ptr = web_load_ctx.buffer,
+        .buffer.size = sizeof(web_load_ctx.buffer)
     };
     sapp_html5_fetch_dropped_file(&request);
 }
@@ -418,8 +422,8 @@ void init() {
     initTextureRendering();
     
     // initial clear color
-    pass_action.colors[0].action = SG_ACTION_CLEAR;
-    pass_action.colors[0].value = { 1.0f, 1.f, 1.f, 1.0f };
+    pass_action.colors[0].load_action = SG_LOADACTION_CLEAR;
+    pass_action.colors[0].clear_value = { 1.0f, 1.f, 1.f, 1.0f };
 
     #ifdef MAC
     initialize_mac_menu("Decolorizer");
@@ -726,7 +730,6 @@ void input(const sapp_event* ev) {
                 setScaleFromTouch(dist - oldDist);
             }
         }
-            
         default: {
             // pass
         }
@@ -742,7 +745,7 @@ sapp_desc sokol_main(int argc, char* argv[]) {
     desc.event_cb = input;
     desc.width = 1024;
     desc.height = 768;
-    desc.gl_force_gles2 = true;
+    //desc.gl_force_gles2 = true;
     desc.enable_dragndrop = true;
     desc.window_title = "Decolorizer";
     desc.ios_keyboard_resizes_canvas = false;

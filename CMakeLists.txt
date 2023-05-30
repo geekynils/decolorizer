@@ -48,13 +48,12 @@ FILE(GLOB SOKOL_HEADER_LIST ${SOKOL_HEADERS}/*.h)
 add_custom_target(sokol_headers SOURCES ${SOKOL_HEADER_LIST})
 
 # shader compilation
-# if(CMAKE_SYSTEM_NAME STREQUAL Darwin)
 add_custom_command(
   OUTPUT shader.glsl.h
   COMMAND ${SOKOL_TOOLS_BIN}/sokol-shdc
           -i ${CMAKE_CURRENT_SOURCE_DIR}/shader.glsl 
           -o ${CMAKE_CURRENT_SOURCE_DIR}/shader.glsl.h 
-          -l metal_macos:glsl100 # glsl100 is for WebGL 1
+          -l metal_macos:glsl300es # OpenGLES3 and WebGL2 (SOKOL_GLES3), WebGL 1 was removed from sokol
   VERBATIM
 )
 
@@ -83,7 +82,6 @@ if(CMAKE_SYSTEM_NAME STREQUAL Darwin)
         "-framework MetalKit"
         "-framework Metal")
 elseif(CMAKE_SYSTEM_NAME STREQUAL Emscripten)
-    add_definitions(-DSOKOL_GLES2) # WebGL
     add_library(sokol STATIC sokol_impl.c ${SOKOL_HEADERS} ${STB_HEADERS})
 endif()
 
@@ -92,12 +90,12 @@ add_executable(decolorizer ${SRC} ${HEADER})
 if(CMAKE_SYSTEM_NAME STREQUAL Darwin)
     target_link_libraries(decolorizer mac_utils sokol imgui himage)
 else()
-    target_link_libraries(decolorizer sokol imgui himage)
+    target_link_libraries(decolorizer sokol imgui himage ${OPENGL_LIBRARIES})
 endif()
 
 # Emscripten-specific linker options
 if (CMAKE_SYSTEM_NAME STREQUAL Emscripten)
     # shell provided by the sokol samples
-    target_link_options(decolorizer PRIVATE --bind -sEXPORTED_RUNTIME_METHODS=FS -sFETCH=1 -sASSERTIONS=1 
+    target_link_options(decolorizer PRIVATE --bind -sUSE_WEBGL2=1 -sEXPORTED_RUNTIME_METHODS=FS -sFETCH=1 -sASSERTIONS=1 
         -sTOTAL_MEMORY=1GB -sMALLOC=emmalloc --closure=1 --shell-file ../shell.html)
 endif()

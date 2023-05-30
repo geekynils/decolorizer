@@ -1,1 +1,19 @@
 Simple app to create coloring pictures. Requres the himage library to run.
+
+How to build:
+
+Native
+
+Just invoke cmake, eg:
+
+mkdir build
+cd build
+ccmake .. (enter the required paths)
+make -j<number of jobs>
+
+
+Emscripten
+
+Use the emscripten cmake wrapper: emcmake ccmake ..
+
+Then use emrun to start the webserver: emrun decolorizer.html
