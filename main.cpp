@@ -229,8 +229,8 @@ EM_JS(void, readFile, (), {
     reader.onload = function(evt) {
         console.log(`got name: ${f.name}, type: ${f.type}, size: ${f.size}`);
         
-        if (f.size > 2000000) {
-            alert("File is too big (bigger then 2MB), please try a smaller one!");
+        if (f.size > 4000000) {
+            alert("File is too big (bigger then 4MB), please try a smaller one!");
             return;
         }
         
